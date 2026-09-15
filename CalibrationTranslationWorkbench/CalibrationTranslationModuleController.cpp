@@ -3,7 +3,10 @@
 #include <Controllers/RotationBodyPlanningController.h>
 #include <Models/RotationBodyPlanningTranslations.h>
 #include <Widgets/ABBTranslationPanel.h>
+#include <Widgets/PostProcessingPanel.h>
 #include <Widgets/WorkpieceCalibrationPanel.h>
+
+#include <QFileInfo>
 
 namespace smrobot::workbench::spray::rotationbody
 {
@@ -11,11 +14,13 @@ namespace smrobot::workbench::spray::rotationbody
         RotationBodyPlanningController& controller,
         WorkpieceCalibrationPanel& calibrationPanel,
         ABBTranslationPanel& abbPanel,
+        PostProcessingPanel& postProcessingPanel,
         QObject* parent)
         : QObject(parent)
         , m_controller(controller)
         , m_calibrationPanel(calibrationPanel)
         , m_abbPanel(abbPanel)
+        , m_postProcessingPanel(postProcessingPanel)
     {
         connect(&m_controller, &RotationBodyPlanningController::stateChanged,
             this, &CalibrationTranslationModuleController::refresh);
@@ -27,6 +32,21 @@ namespace smrobot::workbench::spray::rotationbody
         connect(&m_calibrationPanel, &WorkpieceCalibrationPanel::baseTransformCalculated,
             this, [this](const domain::TransformComponents& components) {
                 report(m_controller.updateBaseComponents(components), 3500);
+            });
+        connect(&m_calibrationPanel, &WorkpieceCalibrationPanel::modeTwoDataImported,
+            this, [this](const Eigen::Vector3d& safetyPositionBaseMeters,
+                const QString& filePath) {
+                domain::RapidExportSettings settings =
+                    m_controller.viewModel().rapidSettings;
+                settings.safetyPositionBaseMeters = safetyPositionBaseMeters;
+                RotationBodyControllerResult result =
+                    m_controller.updateRapidSettings(settings);
+                if(result.success) {
+                    result.message = RotationBodyPlanningTranslations::text(
+                        m_languageCode, "calibration.import_success")
+                        .arg(QFileInfo(filePath).fileName());
+                }
+                report(result, 4000);
             });
         connect(&m_calibrationPanel, &WorkpieceCalibrationPanel::publishFrameChanged,
             this, [this](PublishFrame frame) {
@@ -57,6 +77,26 @@ namespace smrobot::workbench::spray::rotationbody
                     ? std::optional<std::size_t>(static_cast<std::size_t>(index))
                     : std::nullopt);
             });
+        connect(&m_postProcessingPanel,
+            &PostProcessingPanel::loadCurrentTrajectoryRequested,
+            this,
+            [this](const QString& robotId) {
+                report(m_controller.loadCurrentTrajectoryForPostProcessing(
+                    robotId.toUtf8().toStdString()), 6000);
+            });
+        connect(&m_postProcessingPanel,
+            &PostProcessingPanel::generateRequested,
+            this,
+            [this](const QString& templateName,
+                const QString& robotId,
+                const QString& programName,
+                const QString& outputDirectory) {
+                report(m_controller.generatePostProcessedProgram(
+                    templateName.toUtf8().toStdString(),
+                    robotId.toUtf8().toStdString(),
+                    programName.toUtf8().toStdString(),
+                    outputDirectory.toUtf8().toStdString()), 6000);
+            });
         refresh();
     }
 
@@ -65,6 +105,7 @@ namespace smrobot::workbench::spray::rotationbody
         m_languageCode = RotationBodyPlanningTranslations::canonicalLanguageCode(languageCode);
         m_calibrationPanel.setLanguageCode(m_languageCode);
         m_abbPanel.setLanguageCode(m_languageCode);
+        m_postProcessingPanel.setLanguageCode(m_languageCode);
         refresh();
     }
 
@@ -79,6 +120,7 @@ namespace smrobot::workbench::spray::rotationbody
         const RotationBodyPlanningViewModel viewModel = m_controller.viewModel();
         m_calibrationPanel.setViewModel(viewModel);
         m_abbPanel.setViewModel(viewModel);
+        m_postProcessingPanel.setViewModel(viewModel);
         m_updating = false;
     }
 

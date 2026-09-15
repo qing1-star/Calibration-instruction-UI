@@ -42,6 +42,9 @@ namespace smrobot::workbench::spray::rotationbody
             const smrobot::workbench::spray::rotationbody::WorkpieceCalibrationWorkspace& workspace);
         void baseTransformCalculated(
             const smrobot::spray::rotationbody::TransformComponents& components);
+        void modeTwoDataImported(
+            const Eigen::Vector3d& safetyPositionBaseMeters,
+            const QString& filePath);
         void publishFrameChanged(PublishFrame frame);
         void confirmFrameRequested();
 
@@ -67,6 +70,7 @@ namespace smrobot::workbench::spray::rotationbody
         void runFit(domain::CalibrationMode mode);
         void runActiveFit();
         void runBothFits();
+        void importModeTwoTextFile();
         void clearSelectedPoints();
         void clearActiveMode();
         void invalidateFit(domain::CalibrationMode mode);
@@ -97,6 +101,7 @@ namespace smrobot::workbench::spray::rotationbody
         QLabel* m_circleHintLabel{ nullptr };
         QTableWidget* m_cylinderTable{ nullptr };
         QTableWidget* m_circleTable{ nullptr };
+        QPushButton* m_importModeTwoButton{ nullptr };
         QGroupBox* m_operationsGroup{ nullptr };
         QPushButton* m_clearSelectedButton{ nullptr };
         QPushButton* m_clearModeButton{ nullptr };

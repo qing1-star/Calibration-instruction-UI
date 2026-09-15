@@ -12,11 +12,16 @@
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QDoubleValidator>
+#include <QDir>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QTabWidget>
@@ -120,6 +125,13 @@ namespace smrobot::workbench::spray::rotationbody
         m_circleTable = makePointTable(circleRowCount, m_circleTab);
         m_circleTable->setObjectName(QStringLiteral("rotationBodyCalibration.circlePoints"));
         circleLayout->addWidget(m_circleTable);
+        m_importModeTwoButton = new QPushButton(m_circleTab);
+        m_importModeTwoButton->setObjectName(
+            QStringLiteral("rotationBodyCalibration.importModeTwo"));
+        m_importModeTwoButton->setIcon(
+            style()->standardIcon(QStyle::SP_DialogOpenButton));
+        robot_qt_viewer::configureInspectorButton(m_importModeTwoButton);
+        circleLayout->addWidget(m_importModeTwoButton);
         m_modeTabs->addTab(m_circleTab, QString());
         layout->addWidget(m_modeTabs);
 
@@ -297,6 +309,8 @@ namespace smrobot::workbench::spray::rotationbody
             this, &WorkpieceCalibrationPanel::runActiveFit);
         connect(m_fitBothButton, &QPushButton::clicked,
             this, &WorkpieceCalibrationPanel::runBothFits);
+        connect(m_importModeTwoButton, &QPushButton::clicked,
+            this, &WorkpieceCalibrationPanel::importModeTwoTextFile);
         connect(m_axisSourceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this]() {
                 if(m_updating) return;
@@ -478,6 +492,96 @@ namespace smrobot::workbench::spray::rotationbody
         if(!m_updating) {
             emit workspaceEdited(workspaceFromInputs());
         }
+    }
+
+    void WorkpieceCalibrationPanel::importModeTwoTextFile()
+    {
+        QString initialDirectory = QString::fromUtf8(
+            m_viewModel.calibrationInputDirectory.c_str());
+        const QString rapidDirectory = QString::fromUtf8(
+            m_viewModel.rapidSettings.outputDirectory.c_str());
+        if(!QDir(initialDirectory).exists() && !rapidDirectory.isEmpty()) {
+            initialDirectory = QDir(QFileInfo(rapidDirectory).absolutePath())
+                .filePath(QStringLiteral("biaodingJSON"));
+        }
+        if(!QDir(initialDirectory).exists()) {
+            initialDirectory = QDir::currentPath();
+        }
+        const QString filePath = QFileDialog::getOpenFileName(
+            this,
+            RotationBodyPlanningTranslations::text(
+                m_languageCode, "calibration.import_dialog"),
+            initialDirectory,
+            RotationBodyPlanningTranslations::text(
+                m_languageCode, "calibration.import_filter"));
+        if(filePath.isEmpty()) return;
+
+        QFile file(filePath);
+        if(!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QMessageBox::warning(
+                this,
+                RotationBodyPlanningTranslations::text(
+                    m_languageCode, "calibration.import_error_title"),
+                RotationBodyPlanningTranslations::text(
+                    m_languageCode, "calibration.import_open_error")
+                    .arg(QDir::toNativeSeparators(filePath)));
+            return;
+        }
+        const domain::PlanningResult<domain::ModeTwoCalibrationInput> parsed =
+            domain::CalibrationTextParser::parseModeTwo(
+                file.readAll().toStdString());
+        if(!parsed) {
+            QMessageBox::warning(
+                this,
+                RotationBodyPlanningTranslations::text(
+                    m_languageCode, "calibration.import_error_title"),
+                RotationBodyPlanningTranslations::text(
+                    m_languageCode, "calibration.import_format_error")
+                    .arg(QString::fromStdString(parsed.error.message)));
+            return;
+        }
+
+        const auto writeMillimeters = [](QLineEdit* field, double meters) {
+            field->setText(QString::number(
+                domain::metersToMillimeters(meters), 'f', 3));
+        };
+        m_updating = true;
+        for(int row = 0; row < circleRowCount; ++row) {
+            const Eigen::Vector3d& point =
+                parsed.value.circlePointsBaseMeters[static_cast<std::size_t>(row)];
+            for(int column = 0; column < 3; ++column) {
+                m_circleTable->item(row, column)->setText(QString::number(
+                    domain::metersToMillimeters(point[column]), 'f', 3));
+            }
+        }
+        const std::array<const Eigen::Vector3d*, 3> references{
+            &parsed.value.topReferenceBaseMeters,
+            &parsed.value.yDirectionStartBaseMeters,
+            &parsed.value.yDirectionEndBaseMeters
+        };
+        const std::array<std::array<QLineEdit*, 3>*, 3> fields{
+            &m_topReferenceFields,
+            &m_yStartFields,
+            &m_yEndFields
+        };
+        for(std::size_t row = 0; row < references.size(); ++row) {
+            for(int column = 0; column < 3; ++column) {
+                writeMillimeters(
+                    (*fields[row])[static_cast<std::size_t>(column)],
+                    (*references[row])[column]);
+            }
+        }
+        m_modeTabs->setCurrentIndex(1);
+        m_axisSourceCombo->setCurrentIndex(1);
+        m_circleFit.reset();
+        m_frameResult.reset();
+        m_updating = false;
+        updateFitResults();
+        updateAxisStatus();
+        updatePoseResult();
+        updateEnabledState();
+        emitWorkspaceEdited();
+        emit modeTwoDataImported(parsed.value.safetyPositionBaseMeters, filePath);
     }
 
     const std::optional<domain::CalibrationAxisFit>&
@@ -894,6 +998,7 @@ namespace smrobot::workbench::spray::rotationbody
         m_clearModeButton->setEnabled(editable);
         m_fitCurrentButton->setEnabled(editable);
         m_fitBothButton->setEnabled(editable);
+        m_importModeTwoButton->setEnabled(editable);
         m_axisSourceCombo->setEnabled(editable);
         m_publishBaseButton->setEnabled(editable && m_viewModel.hasModel);
         m_publishLocalButton->setEnabled(editable && m_viewModel.hasModel);
@@ -921,6 +1026,9 @@ namespace smrobot::workbench::spray::rotationbody
         m_modeTabs->setTabText(1, translated("calibration.mode_two"));
         m_cylinderHintLabel->setText(translated("calibration.cylinder_hint"));
         m_circleHintLabel->setText(translated("calibration.circle_hint"));
+        m_importModeTwoButton->setText(translated("calibration.import_mode_two"));
+        m_importModeTwoButton->setToolTip(
+            translated("calibration.import_mode_two_tooltip"));
         m_operationsGroup->setTitle(translated("calibration.operations"));
         m_clearSelectedButton->setText(translated("calibration.clear_selected"));
         m_clearModeButton->setText(translated("calibration.clear_mode"));

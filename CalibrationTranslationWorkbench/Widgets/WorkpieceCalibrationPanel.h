@@ -40,13 +40,11 @@ namespace smrobot::workbench::spray::rotationbody
     signals:
         void workspaceEdited(
             const smrobot::workbench::spray::rotationbody::WorkpieceCalibrationWorkspace& workspace);
-        void baseTransformCalculated(
-            const smrobot::spray::rotationbody::TransformComponents& components);
         void modeTwoDataImported(
             const Eigen::Vector3d& safetyPositionBaseMeters,
             const QString& filePath);
+        void calculateWorkpieceFrameRequested();
         void publishFrameChanged(PublishFrame frame);
-        void confirmFrameRequested();
 
     private:
         domain::CalibrationMode activeMode() const noexcept;
@@ -75,7 +73,6 @@ namespace smrobot::workbench::spray::rotationbody
         void clearActiveMode();
         void invalidateFit(domain::CalibrationMode mode);
         void invalidateFrameResult();
-        void calculateAndApply();
         void updateFitResults();
         void updateAxisStatus();
         void updatePoseResult();
@@ -125,11 +122,11 @@ namespace smrobot::workbench::spray::rotationbody
         std::array<QLineEdit*, 3> m_yEndFields{};
         QLabel* m_heightLabel{ nullptr };
         QDoubleSpinBox* m_heightSpin{ nullptr };
+        QGroupBox* m_publishGroup{ nullptr };
         QPushButton* m_calculateButton{ nullptr };
         QLabel* m_poseResultLabel{ nullptr };
         QButtonGroup* m_publishButtonGroup{ nullptr };
         QToolButton* m_publishBaseButton{ nullptr };
         QToolButton* m_publishLocalButton{ nullptr };
-        QPushButton* m_confirmFrameButton{ nullptr };
     };
 }

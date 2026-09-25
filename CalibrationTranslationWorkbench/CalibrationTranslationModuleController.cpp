@@ -29,10 +29,6 @@ namespace smrobot::workbench::spray::rotationbody
                 if(m_updating) return;
                 report(m_controller.updateCalibrationWorkspace(workspace));
             });
-        connect(&m_calibrationPanel, &WorkpieceCalibrationPanel::baseTransformCalculated,
-            this, [this](const domain::TransformComponents& components) {
-                report(m_controller.updateBaseComponents(components), 3500);
-            });
         connect(&m_calibrationPanel, &WorkpieceCalibrationPanel::modeTwoDataImported,
             this, [this](const Eigen::Vector3d& safetyPositionBaseMeters,
                 const QString& filePath) {
@@ -48,13 +44,15 @@ namespace smrobot::workbench::spray::rotationbody
                 }
                 report(result, 4000);
             });
+        connect(&m_calibrationPanel,
+            &WorkpieceCalibrationPanel::calculateWorkpieceFrameRequested,
+            this,
+            [this]() { report(m_controller.calculateAndApplyWorkpieceFrame(), 3500); });
         connect(&m_calibrationPanel, &WorkpieceCalibrationPanel::publishFrameChanged,
             this, [this](PublishFrame frame) {
                 m_controller.setPublishFrame(frame);
                 refresh();
             });
-        connect(&m_calibrationPanel, &WorkpieceCalibrationPanel::confirmFrameRequested,
-            this, [this]() { report(m_controller.confirmFrame(), 3500); });
         connect(&m_abbPanel, &ABBTranslationPanel::settingsEdited,
             this, [this](const domain::RapidExportSettings& settings) {
                 report(m_controller.updateRapidSettings(settings), 2500);

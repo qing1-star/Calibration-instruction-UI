@@ -18,6 +18,7 @@
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
@@ -250,39 +251,49 @@ namespace smrobot::workbench::spray::rotationbody
         m_heightSpin->setValue(120.0);
         frameLayout->addWidget(m_heightLabel, 7, 0, 1, 2);
         frameLayout->addWidget(m_heightSpin, 7, 2, 1, 2);
-        m_calculateButton = new QPushButton(m_frameGroup);
-        m_calculateButton->setObjectName(QStringLiteral("rotationBodyCalibration.calculateApply"));
-        m_calculateButton->setProperty("primaryAction", true);
-        m_calculateButton->setMinimumHeight(38);
-        frameLayout->addWidget(m_calculateButton, 8, 0, 1, 4);
-        m_poseResultLabel = new QLabel(m_frameGroup);
-        m_poseResultLabel->setObjectName(
-            QStringLiteral("rotationBodyCalibration.poseResult"));
-        m_poseResultLabel->setWordWrap(true);
-        m_poseResultLabel->setProperty("planningStatus", true);
-        robot_qt_viewer::makeHorizontallyCompressible(m_poseResultLabel);
-        frameLayout->addWidget(m_poseResultLabel, 9, 0, 1, 4);
-        m_publishButtonGroup = new QButtonGroup(m_frameGroup);
-        m_publishButtonGroup->setExclusive(true);
-        m_publishBaseButton = new QToolButton(m_frameGroup);
-        m_publishBaseButton->setCheckable(true);
-        m_publishBaseButton->setChecked(true);
-        m_publishBaseButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-        m_publishLocalButton = new QToolButton(m_frameGroup);
-        m_publishLocalButton->setCheckable(true);
-        m_publishLocalButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-        m_publishButtonGroup->addButton(m_publishBaseButton, 0);
-        m_publishButtonGroup->addButton(m_publishLocalButton, 1);
-        frameLayout->addWidget(m_publishBaseButton, 10, 0, 1, 2);
-        frameLayout->addWidget(m_publishLocalButton, 10, 2, 1, 2);
-        m_confirmFrameButton = new QPushButton(m_frameGroup);
-        m_confirmFrameButton->setIcon(style()->standardIcon(QStyle::SP_DialogApplyButton));
-        m_confirmFrameButton->setMinimumHeight(34);
-        frameLayout->addWidget(m_confirmFrameButton, 11, 0, 1, 4);
         frameLayout->setColumnStretch(1, 1);
         frameLayout->setColumnStretch(2, 1);
         frameLayout->setColumnStretch(3, 1);
         layout->addWidget(m_frameGroup);
+
+        m_publishGroup = new QGroupBox(this);
+        auto* publishLayout = new QVBoxLayout(m_publishGroup);
+        publishLayout->setContentsMargins(8, 20, 8, 8);
+        publishLayout->setSpacing(6);
+        m_calculateButton = new QPushButton(m_publishGroup);
+        m_calculateButton->setObjectName(QStringLiteral("rotationBodyCalibration.calculateApply"));
+        m_calculateButton->setProperty("primaryAction", true);
+        m_calculateButton->setMinimumHeight(38);
+        robot_qt_viewer::configureInspectorButton(m_calculateButton);
+        publishLayout->addWidget(m_calculateButton);
+        m_poseResultLabel = new QLabel(m_publishGroup);
+        m_poseResultLabel->setObjectName(QStringLiteral("rotationBodyCalibration.poseResult"));
+        m_poseResultLabel->setWordWrap(true);
+        m_poseResultLabel->setProperty("planningStatus", true);
+        robot_qt_viewer::makeHorizontallyCompressible(m_poseResultLabel);
+        publishLayout->addWidget(m_poseResultLabel);
+        auto* publishRow = new QHBoxLayout();
+        publishRow->setContentsMargins(0, 0, 0, 0);
+        publishRow->setSpacing(4);
+        m_publishButtonGroup = new QButtonGroup(m_publishGroup);
+        m_publishButtonGroup->setExclusive(true);
+        m_publishBaseButton = new QToolButton(m_publishGroup);
+        m_publishBaseButton->setObjectName(QStringLiteral("rotationBodyCalibration.publishBase"));
+        m_publishBaseButton->setCheckable(true);
+        m_publishBaseButton->setChecked(true);
+        m_publishBaseButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        m_publishBaseButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        m_publishButtonGroup->addButton(m_publishBaseButton, 0);
+        publishRow->addWidget(m_publishBaseButton, 1);
+        m_publishLocalButton = new QToolButton(m_publishGroup);
+        m_publishLocalButton->setObjectName(QStringLiteral("rotationBodyCalibration.publishLocal"));
+        m_publishLocalButton->setCheckable(true);
+        m_publishLocalButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        m_publishLocalButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        m_publishButtonGroup->addButton(m_publishLocalButton, 1);
+        publishRow->addWidget(m_publishLocalButton, 1);
+        publishLayout->addLayout(publishRow);
+        layout->addWidget(m_publishGroup);
         layout->addStretch(1);
 
         connect(m_modeTabs, &QTabWidget::currentChanged, this, [this]() {
@@ -327,16 +338,6 @@ namespace smrobot::workbench::spray::rotationbody
                     emitWorkspaceEdited();
                 }
             });
-        connect(m_publishButtonGroup, QOverload<int>::of(&QButtonGroup::buttonClicked),
-            this, [this](int id) {
-                if(!m_updating) {
-                    emit publishFrameChanged(id == 1
-                        ? PublishFrame::PlanningLocalFrame
-                        : PublishFrame::BaseFrame);
-                }
-            });
-        connect(m_confirmFrameButton, &QPushButton::clicked,
-            this, &WorkpieceCalibrationPanel::confirmFrameRequested);
         for(QLineEdit* field : {
             m_topReferenceFields[0], m_topReferenceFields[1], m_topReferenceFields[2],
             m_yStartFields[0], m_yStartFields[1], m_yStartFields[2],
@@ -349,8 +350,15 @@ namespace smrobot::workbench::spray::rotationbody
         connect(m_showCircleCheck, &QCheckBox::toggled,
             this, [this]() { emitWorkspaceEdited(); });
         connect(m_calculateButton, &QPushButton::clicked,
-            this, &WorkpieceCalibrationPanel::calculateAndApply);
-
+            this, &WorkpieceCalibrationPanel::calculateWorkpieceFrameRequested);
+        connect(m_publishButtonGroup, QOverload<int>::of(&QButtonGroup::buttonClicked),
+            this, [this](int id) {
+                if(!m_updating) {
+                    emit publishFrameChanged(id == 1
+                        ? PublishFrame::PlanningLocalFrame
+                        : PublishFrame::BaseFrame);
+                }
+            });
         retranslate();
         updateFitResults();
         updateAxisStatus();
@@ -479,7 +487,8 @@ namespace smrobot::workbench::spray::rotationbody
         m_circleFit = workspace.circleFit;
         m_frameResult = workspace.frame;
         m_publishBaseButton->setChecked(m_viewModel.publishFrame == PublishFrame::BaseFrame);
-        m_publishLocalButton->setChecked(m_viewModel.publishFrame == PublishFrame::PlanningLocalFrame);
+        m_publishLocalButton->setChecked(
+            m_viewModel.publishFrame == PublishFrame::PlanningLocalFrame);
         m_heightInitializedFromModel = true;
         m_updating = false;
         updateFitResults();
@@ -834,111 +843,7 @@ namespace smrobot::workbench::spray::rotationbody
     void WorkpieceCalibrationPanel::invalidateFrameResult()
     {
         m_frameResult.reset();
-        if(m_poseResultLabel) {
-            m_poseResultLabel->setText(RotationBodyPlanningTranslations::text(
-                m_languageCode,
-                "calibration.pose_not_calculated"));
-        }
-    }
-
-    void WorkpieceCalibrationPanel::calculateAndApply()
-    {
-        const domain::CalibrationAxisFit* fit = selectedAxisFit();
-        if(fit == nullptr) {
-            m_poseResultLabel->setText(RotationBodyPlanningTranslations::text(
-                m_languageCode,
-                "calibration.error.axis_missing"));
-            return;
-        }
-        QString error;
-        const auto top = readReferencePoint(
-            m_topReferenceFields,
-            "calibration.error.top_missing",
-            error);
-        if(!top) {
-            m_poseResultLabel->setText(error);
-            return;
-        }
-        const auto yStart = readReferencePoint(
-            m_yStartFields,
-            "calibration.error.y_start_missing",
-            error);
-        if(!yStart) {
-            m_poseResultLabel->setText(error);
-            return;
-        }
-        const auto yEnd = readReferencePoint(
-            m_yEndFields,
-            "calibration.error.y_end_missing",
-            error);
-        if(!yEnd) {
-            m_poseResultLabel->setText(error);
-            return;
-        }
-        const double heightMeters =
-            domain::millimetersToMeters(m_heightSpin->value());
-        const domain::PlanningResult<domain::WorkpieceFrameCalibration> result =
-            domain::WorkpieceCalibrationSolver::computeWorkpieceFrame(
-                *fit,
-                *top,
-                heightMeters,
-                *yStart,
-                *yEnd);
-        if(!result) {
-            const Eigen::Vector3d measuredY = *yEnd - *yStart;
-            const Eigen::Vector3d axis = fit->axisDirectionBase.normalized();
-            const bool shortBaseline = measuredY.norm() < 0.001;
-            const bool parallel = !shortBaseline &&
-                (measuredY - measuredY.dot(axis) * axis).norm() < 0.001;
-            const char* key = shortBaseline
-                ? "calibration.error.y_short"
-                : (parallel
-                    ? "calibration.error.y_parallel"
-                    : "calibration.error.frame_failed");
-            m_poseResultLabel->setText(
-                RotationBodyPlanningTranslations::text(m_languageCode, key));
-            return;
-        }
-
-        m_frameResult = result.value;
         updatePoseResult();
-        emitWorkspaceEdited();
-        emit baseTransformCalculated(result.value.baseFromPlanningComponents);
-    }
-
-    void WorkpieceCalibrationPanel::updatePoseResult()
-    {
-        if(!m_frameResult) {
-            m_poseResultLabel->setText(RotationBodyPlanningTranslations::text(
-                m_languageCode,
-                "calibration.pose_not_calculated"));
-            return;
-        }
-
-        const domain::TransformComponents& components =
-            m_frameResult->baseFromPlanningComponents;
-        const Eigen::Vector3d degrees(
-            domain::radiansToDegrees(components.rollPitchYawRadians.x()),
-            domain::radiansToDegrees(components.rollPitchYawRadians.y()),
-            domain::radiansToDegrees(components.rollPitchYawRadians.z()));
-        const Eigen::Vector4d& quaternion = m_frameResult->abbQuaternionWxyz;
-        QString text = RotationBodyPlanningTranslations::text(
-            m_languageCode,
-            "calibration.pose_result")
-            .arg(vectorMillimeters(components.translationMeters, 3))
-            .arg(degrees.x(), 0, 'f', 4)
-            .arg(degrees.y(), 0, 'f', 4)
-            .arg(degrees.z(), 0, 'f', 4)
-            .arg(quaternion.x(), 0, 'f', 8)
-            .arg(quaternion.y(), 0, 'f', 8)
-            .arg(quaternion.z(), 0, 'f', 8)
-            .arg(quaternion.w(), 0, 'f', 8);
-        if(m_frameResult->shortYDirectionBaseline) {
-            text += QLatin1Char('\n') + RotationBodyPlanningTranslations::text(
-                m_languageCode,
-                "calibration.warning.short_y");
-        }
-        m_poseResultLabel->setText(text);
     }
 
     void WorkpieceCalibrationPanel::updateFitResults()
@@ -990,6 +895,41 @@ namespace smrobot::workbench::spray::rotationbody
             .arg(vectorUnitless(fit->axisDirectionBase, 6)));
     }
 
+    void WorkpieceCalibrationPanel::updatePoseResult()
+    {
+        if(!m_frameResult) {
+            m_poseResultLabel->setText(RotationBodyPlanningTranslations::text(
+                m_languageCode,
+                "calibration.pose_not_calculated"));
+            return;
+        }
+
+        const domain::TransformComponents& components =
+            m_frameResult->baseFromPlanningComponents;
+        const Eigen::Vector3d degrees(
+            domain::radiansToDegrees(components.rollPitchYawRadians.x()),
+            domain::radiansToDegrees(components.rollPitchYawRadians.y()),
+            domain::radiansToDegrees(components.rollPitchYawRadians.z()));
+        const Eigen::Vector4d& quaternion = m_frameResult->abbQuaternionWxyz;
+        QString text = RotationBodyPlanningTranslations::text(
+            m_languageCode,
+            "calibration.pose_result")
+            .arg(vectorMillimeters(components.translationMeters, 3))
+            .arg(degrees.x(), 0, 'f', 4)
+            .arg(degrees.y(), 0, 'f', 4)
+            .arg(degrees.z(), 0, 'f', 4)
+            .arg(quaternion.x(), 0, 'f', 8)
+            .arg(quaternion.y(), 0, 'f', 8)
+            .arg(quaternion.z(), 0, 'f', 8)
+            .arg(quaternion.w(), 0, 'f', 8);
+        if(m_frameResult->shortYDirectionBaseline) {
+            text += QLatin1Char('\n') + RotationBodyPlanningTranslations::text(
+                m_languageCode,
+                "calibration.warning.short_y");
+        }
+        m_poseResultLabel->setText(text);
+    }
+
     void WorkpieceCalibrationPanel::updateEnabledState()
     {
         const bool editable = !m_viewModel.isBusy;
@@ -1000,9 +940,7 @@ namespace smrobot::workbench::spray::rotationbody
         m_fitBothButton->setEnabled(editable);
         m_importModeTwoButton->setEnabled(editable);
         m_axisSourceCombo->setEnabled(editable);
-        m_publishBaseButton->setEnabled(editable && m_viewModel.hasModel);
-        m_publishLocalButton->setEnabled(editable && m_viewModel.hasModel);
-        m_confirmFrameButton->setEnabled(m_viewModel.canConfirmFrame);
+        m_publishGroup->setEnabled(editable && m_viewModel.hasModel);
         m_calculateButton->setEnabled(
             editable && m_viewModel.hasModel && selectedAxisFit() != nullptr);
         m_calculateButton->setToolTip(
@@ -1046,11 +984,10 @@ namespace smrobot::workbench::spray::rotationbody
         m_referenceRowLabels[1]->setText(translated("calibration.y_start"));
         m_referenceRowLabels[2]->setText(translated("calibration.y_end"));
         m_heightLabel->setText(translated("calibration.height"));
+        m_publishGroup->setTitle(translated("publish.title"));
         m_calculateButton->setText(translated("calibration.calculate_apply"));
         m_publishBaseButton->setText(translated("publish.base"));
         m_publishLocalButton->setText(translated("publish.local"));
-        m_confirmFrameButton->setText(translated("publish.confirm_frame"));
-        m_confirmFrameButton->setToolTip(translated("publish.confirm_frame_tooltip"));
         updatePoseResult();
         updateEnabledState();
     }

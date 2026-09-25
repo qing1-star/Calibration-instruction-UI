@@ -4,10 +4,14 @@ set(TARGET_NAME CalibrationTranslationWorkbench)
 set(CMAKE_AUTOMOC ON)
 
 set(SOURCES
+    CalibrationTranslationWorkbenchContribution.cpp
+    CalibrationTranslationWorkbenchContribution.h
     CalibrationTranslationModuleController.cpp
     CalibrationTranslationModuleController.h
     Widgets/ABBTranslationPanel.cpp
     Widgets/ABBTranslationPanel.h
+    Widgets/PostProcessingPanel.cpp
+    Widgets/PostProcessingPanel.h
     Widgets/WorkpieceCalibrationPanel.cpp
     Widgets/WorkpieceCalibrationPanel.h
 )
@@ -39,6 +43,9 @@ set_target_properties(${TARGET_NAME} PROPERTIES
     AUTOMOC ON
     DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX}
     RELEASE_POSTFIX ${CMAKE_RELEASE_POSTFIX}
+    SMROBOT_WORKBENCH_REGISTRAR_HEADER "CalibrationTranslationWorkbenchContribution.h"
+    SMROBOT_WORKBENCH_REGISTRAR_FUNCTION "robot_qt_viewer::registerCalibrationTranslationWorkbenchContribution"
+    EXPORT_PROPERTIES "SMROBOT_WORKBENCH_REGISTRAR_HEADER;SMROBOT_WORKBENCH_REGISTRAR_FUNCTION"
 )
 
 if(ExportPacakge${PACKAGE_NAME})

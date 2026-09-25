@@ -8,6 +8,7 @@
 namespace smrobot::workbench::spray::rotationbody
 {
     class ABBTranslationPanel;
+    class PostProcessingPanel;
     class RotationBodyPlanningController;
     class WorkpieceCalibrationPanel;
 
@@ -20,6 +21,7 @@ namespace smrobot::workbench::spray::rotationbody
             RotationBodyPlanningController& controller,
             WorkpieceCalibrationPanel& calibrationPanel,
             ABBTranslationPanel& abbPanel,
+            PostProcessingPanel& postProcessingPanel,
             QObject* parent = nullptr);
 
         void setLanguageCode(const QString& languageCode);
@@ -35,6 +37,7 @@ namespace smrobot::workbench::spray::rotationbody
         RotationBodyPlanningController& m_controller;
         WorkpieceCalibrationPanel& m_calibrationPanel;
         ABBTranslationPanel& m_abbPanel;
+        PostProcessingPanel& m_postProcessingPanel;
         QString m_languageCode{ QStringLiteral("en") };
         bool m_updating{ false };
     };
